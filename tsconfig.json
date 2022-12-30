@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "useDefineForClassFields": true,
+    "jsx": "preserve",
+    "noImplicitThis": true,
+    "strict": true,
+    "isolatedModules": true,
+    "preserveValueImports": true,
+    "importsNotUsedAsValues": "error",
+    "target": "esnext",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "noImplicitAny": false,
+    "lib": [
+      "es7"
+    ],
+    "types": [
+      "node"
+    ],
+    "allowSyntheticDefaultImports": true,
+    "sourceMap": true,
+    "noErrorTruncation": true
+  },
+  "include": [
+    "**/*"
+  ],
+  "ts-node": {
+    "extends": "ts-node/node16/tsconfig.json",
+    "compilerOptions": {
+      "module": "commonjs"
+    }
+  }
+}
