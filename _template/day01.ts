@@ -7,3 +7,5 @@ const data = fs
   .readFileSync(SAMPLE ? "./input_sample.txt" : "./input.txt", "utf8")
   .split("\n")
   .slice(0, -1);
+
+console.dir(data);
