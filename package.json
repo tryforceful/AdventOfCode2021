@@ -5,6 +5,7 @@
     "watch-all": "nodemon */*.ts"
   },
   "dependencies": {
+    "bit-buffer": "^0.2.5",
     "fs": "^0.0.1-security",
     "lodash": "^4.17.21",
     "mnemonist": "^0.39.5",
