@@ -2,6 +2,62 @@ export const sorter = (a: number, b: number) => (a < b ? -1 : a > b ? 1 : 0);
 export const sum = (a: number, c: number) => a + c;
 export const multiply = (a: number, c: number) => a * c;
 
+export const ADJACENCIES_4 = [[0,1],[1,0],[0,-1],[-1,0]]
+export const ADJACENCIES_8 = [[0,1],[1,1],[1,0],[1,-1],[0,-1],[-1,-1],[-1,0],[-1,1]]
+export const ADJACENCIES_9 = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,0],[0,1],[1,-1],[1,0],[1,1]]
+
+export function foldArray<T>(array: T[], delimiters: T | T[], equalityFunction: (a:T,b:T) => boolean = (a,b)=>a===b): T[][] {
+  const foldedArray: T[][] = [];
+  let subArray: T[] = new Array<T>()
+
+  const _delimiters = delimiters instanceof Array ? delimiters : [delimiters]
+  for(const item of array) {
+    if (_delimiters.some(delimiter => equalityFunction(item, delimiter))) {
+      if (subArray.length) {
+        foldedArray.push(subArray);
+        subArray = new Array<T>()
+      }
+    } else subArray.push(item);
+  }
+  foldedArray.push(subArray);
+  return foldedArray
+}
+
+export function pad2DArray<T>(
+  array: Array<Array<T>>,
+  paddingValue: T,
+  paddingThickness: number = 1
+) {
+  if (!array.length || !array[0].length || paddingThickness <= 0) return array;
+  const X_LENGTH = array.length,
+    Y_LENGTH = array[0].length;
+
+  const newArray: T[][] = [];
+  for (const _ of Array(paddingThickness))
+    newArray.push(
+      new Array(Y_LENGTH + 2 * paddingThickness).fill(paddingValue)
+    );
+
+  for (const i in Array(X_LENGTH).fill(0))
+    newArray.push(
+      new Array(paddingThickness)
+        .fill(paddingValue)
+        .concat([...array[i]], new Array(paddingThickness).fill(paddingValue))
+    );
+
+  for (const _ of Array(paddingThickness))
+    newArray.push(
+      new Array(Y_LENGTH + 2 * paddingThickness).fill(paddingValue)
+    );
+
+  return newArray;
+}
+
+export function print2DArray<T>(array: T[][]) {
+  const string = array.map((x) => x.join("")).join("\n");
+  console.log(string + '\n');
+}
+
 export class CoordSet implements Set<[number, number]> {
   private _set: Set<string>;
 
