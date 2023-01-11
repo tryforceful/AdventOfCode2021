@@ -1,5 +1,5 @@
 const SAMPLE = false;
-const PART_ONE = true;
+const PART_ONE = false;
 
 import * as fs from "fs";
 import * as help from "../helpers";
@@ -18,20 +18,24 @@ type Spot = 'a'|'b'|'c'|'d'|'t'|'u'|'v'|'w'|'x'|'y'|'z';
 
 const burrows = data.slice(2, 4).map((x) => x.split(/[\s#]*/).filter(x=>x)) as Amphipod[][]
 
-console.dir(data);
+if(!PART_ONE)
+  burrows.splice(1, 0, ['D','C','B','A'], ['D','B','A','C'])
+
+const BURROW_DEPTH = PART_ONE ? 2 : 4;
+
+// console.dir(data);
 // console.dir(burrows);
 
+
 /**
+ * We will represent the structure with state variables like this:
+ *
  * #############
  * #tu.x.y.z.vw#
  * ###B#C#B#D###
  *   #A#D#C#A#
  *   #########
  *    a b c d
- *
- * t,u,v,w,x,y,z <--
- *
- * And set up a weighting algorithm for moving from each burrow (1,2,3,4) into a stack posiiton, or back
  */
 
 /**
@@ -53,10 +57,10 @@ type SpotsState = {
 };
 
 const initialSpots: SpotsState = {
-  a: new FixedStack<Amphipod>(PART_ONE ? 2 : 4),
-  b: new FixedStack<Amphipod>(PART_ONE ? 2 : 4),
-  c: new FixedStack<Amphipod>(PART_ONE ? 2 : 4),
-  d: new FixedStack<Amphipod>(PART_ONE ? 2 : 4),
+  a: new FixedStack<Amphipod>(BURROW_DEPTH),
+  b: new FixedStack<Amphipod>(BURROW_DEPTH),
+  c: new FixedStack<Amphipod>(BURROW_DEPTH),
+  d: new FixedStack<Amphipod>(BURROW_DEPTH),
   t: null,
   u: null,
   v: null,
@@ -65,13 +69,22 @@ const initialSpots: SpotsState = {
   y: null,
   z: null,
 };
-initialSpots.a.push([burrows[1][0], burrows[0][0]]);
-initialSpots.b.push([burrows[1][1], burrows[0][1]]);
-initialSpots.c.push([burrows[1][2], burrows[0][2]]);
-initialSpots.d.push([burrows[1][3], burrows[0][3]]);
 
 const BURROWS = ["a", "b", "c", "d"] as const;
 const HALLWAY = ["t", "u", "v", "w", "x", "y", "z"] as const;
+
+const needToMove: Spot[] = []
+
+for(let i = BURROW_DEPTH-1; i >= 0; i--) {
+  for(const j in BURROWS) {
+    const burrow = BURROWS[j]
+    initialSpots[burrow].push(burrows[i][j]);
+
+    if(burrows[i][j].toLowerCase() !== burrow || needToMove.includes(burrow))
+      needToMove.push(burrow)
+  }
+}
+console.dir(needToMove)
 
 const BLOCKED_MAP = {
   u: [["t"], [..."abcdvwxyz"]],
@@ -82,14 +95,14 @@ const BLOCKED_MAP = {
 };
 const BLOCKER_SPOTS = Object.keys(BLOCKED_MAP) as Spot[];
 
-//     a,b,c,d,t,u,v,w,x,y,z
 const DISTANCE_GRID = [
+//     a,b,c,d,t,u,v,w,x,y,z
 /*a*/ [0,4,6,8,3,2,8,9,2,4,6],
-/*b*/ [4,0,4,6,6,5,6,7,2,2,4],
+/*b*/ [4,0,4,6,5,4,6,7,2,2,4],
 /*c*/ [6,4,0,4,7,6,4,5,4,2,2],
 /*d*/ [8,6,4,0,9,8,2,3,6,4,2],
-/*t*/ [3,6,7,9,0,1,9,10,3,5,7],
-/*u*/ [2,5,6,8,1,0,8,9,2,4,6],
+/*t*/ [3,5,7,9,0,1,9,10,3,5,7],
+/*u*/ [2,4,6,8,1,0,8,9,2,4,6],
 /*v*/ [8,6,4,2,9,8,0,1,6,4,2],
 /*w*/ [9,7,5,3,10,9,1,0,7,5,3],
 /*x*/ [2,2,4,6,3,2,6,7,0,2,4],
@@ -97,31 +110,13 @@ const DISTANCE_GRID = [
 /*z*/ [6,4,2,2,7,6,2,3,4,2,0],
 ] as const;
 
-
-const cloneFixedStacksCorrectly: CloneDeepWithCustomizer<SpotsState> = (value) => {
-  if(value instanceof FixedStack)
-    return new FixedStack(value)
-  else return undefined
-}
-
-/**
- * INITIAL STATE
- */
-
-// TODO: UNHARDCODE THIS
-const needToMove = SAMPLE
-  ? (["a", "b", "b", "c", "d", "d"] as Spot[])
-  : (["a", "a", "b", "b", "c", "c", "d", "d"] as Spot[]);// {a:1,b:2,c:1,d:2}
-
+const cloneFixedStacksCorrectly: CloneDeepWithCustomizer<SpotsState> = (value) =>
+  (value instanceof FixedStack) ? new FixedStack(value) : undefined;
 
 type State = {
   spots: SpotsState;
   needToMove: Spot[];
 };
-
-/**
- * A* search
- */
 
 type StateKey = string;
 
@@ -133,7 +128,7 @@ const openPQ = new Heap<State>((a: State, b: State) => {
   }
 );
 const openSet = new Set<StateKey>
-const cameFrom = new Map();
+const cameFrom = new Map<string, [string, number]>();
 
 function h (state: State) {
   // 0 - gscore.get(makeKey(state));
@@ -168,12 +163,14 @@ fscore.set(initialKey, h(initialstate));
 
 // console.dir(h(initialstate));
 
+printBurrows(initialstate.spots)
+
 openPQ.push(initialstate)
 openSet.add(makeKey(initialstate))
 
 function makeKey(state: State): StateKey {
   const spots = Object.values(state.spots)
-  return spots.map(i => i instanceof FixedStack<Amphipod> ? i.array.join('').padEnd(2, '-') : i ?? '-').join('')
+  return spots.map(i => i instanceof FixedStack<Amphipod> ? i.array.join('').padEnd(BURROW_DEPTH, '-') : i ?? '-').join('')
   // console.log([...str.join('')].map(x => Number.parseInt(x,16)-9).join(''));
   // console.log(str.join(""));
   // return str.join()
@@ -188,19 +185,22 @@ function PART1() {
 
   console.time('zelda')
   while(openPQ.size) {
+
+    // console.log(openPQ
+    //   .toArray()
+    //   .slice(0,5)
+    //   .map((x) => [makeKey(x), fscore.get(makeKey(x))]))
     const state = openPQ.pop();
     if (!state) throw "Woah";
 
     const stateKey = makeKey(state);
+    // console.dir([stateKey, fscore.get(stateKey)])
     openSet.delete(stateKey);
 
     // if(iterations % 5000 === 0) {
     //   console.dir({iterations, endsHit, key: stateKey, movesLeft: state.needToMove.length})
-
     //   console.dir({openSet: openSet.size, openPQ: openPQ.size})
-
     //   console.dir([...fscore.entries()].slice(-10));
-
     // }
 
     if (!state.needToMove.length) {
@@ -217,13 +217,13 @@ function PART1() {
           fscore: fscore.get(stateKey),
           gscore: gscore.get(stateKey),
         });
+
+        // return stateKey;
       }
       endsHit++;
 
-      // console.dir({ "we made it!": "", newScore, iterations: iterations });
-
-      return;
-      continue;
+      console.dir({ "we made it!": "", x: gscore.get(stateKey), iterations: iterations });
+      // continue;
     }
 
     for (const moveFromSpot of [...new Set(state.needToMove)]) {
@@ -272,6 +272,11 @@ function PART1() {
           gscore.get(oldStateKey) +
           getScoreFromThisMove(amphipod, moveFromSpot, moveToSpot, state.spots);
 
+        if (newScore > finalMaxScore) {
+          // we're already over the bounds of what the min score can be so don't recurse further!
+          continue;
+        }
+
         // handle "still need to move" state
         const newNeedToMove = [...state.needToMove];
         const fromidx = newNeedToMove.indexOf(moveFromSpot);
@@ -279,21 +284,11 @@ function PART1() {
         if (moveToSpot.toUpperCase() !== amphipod)
           newNeedToMove.push(moveToSpot); // only add it back in if this amphipod hasn't come to rest
 
-        // //print, for now
-        // console.dir({
-        //   moveFromSpot,
-        //   moveToSpot,
-        //   spots,
-        //   score: newScore,
-        //   newNeedToMove,
-        // });
+        // console.dir({ moveFromSpot, moveToSpot, spots, score: newScore, newNeedToMove, });
 
         // printBurrows(spots);
 
-        const newState: State = {
-          spots,
-          needToMove: newNeedToMove,
-        };
+        const newState: State = {  spots, needToMove: newNeedToMove, };
 
         // if (state.movePath.length > needToMove.length*2) continue; // Can't possibly move more than this
 
@@ -301,14 +296,11 @@ function PART1() {
         const newStateKey = makeKey(newState);
 
         const alreadyScored = gscore.get(newStateKey);
-        if (alreadyScored && alreadyScored < newScore) {
+        if (alreadyScored && alreadyScored <= newScore) {
           continue; // we found a better path to this state somehow
         }
-        if (newScore > finalMaxScore) {
-          // we're already over the bounds of what the min score can be so don't recurse further!
-          continue;
-        }
 
+        cameFrom.set(newStateKey, [stateKey, newScore-gscore.get(oldStateKey)])
         gscore.set(newStateKey, newScore);
         fscore.set(newStateKey, newScore + h(newState));
 
@@ -322,13 +314,23 @@ function PART1() {
     }
   }
   console.timeEnd("zelda");
+  return ''
 }
-PART1();
+const endStateKey = PART1();
 
-console.dir({ iterations, finalMaxScore });
-console.dir(gscore.size);
-console.dir(fscore.size);
-console.dir(cameFrom)
+console.dir({ iterations, finalMaxScore, openSet, gscoresize: gscore.size, fscoresize: fscore.size });
+
+
+
+// // generate "came from" list
+// let x = endStateKey, d_time=0;
+// printBurrows(endStateKey);
+// while(cameFrom.has(x)) {
+//   [x, d_time] = cameFrom.get(x) ?? ['',0]
+//   console.log(`cost ${d_time} ^`);
+//   printBurrows(x)
+// }
+
 // console.dir([...gscore.entries()].slice(0,10))
 
 // HELPER FUNCTIONS
@@ -343,10 +345,10 @@ function getScoreFromThisMove(amphipod: Amphipod, from: Spot, to: Spot, original
 
   // consider if we were deeper in the burrows (requiring +1s)
   for(const burrow of BURROWS) {
-    if(from === burrow && originalState[burrow].size === 1)
-      distance++;
-    if(to === burrow && originalState[burrow].size === 0)
-      distance++;
+    if(from === burrow && originalState[burrow].size < BURROW_DEPTH)
+      distance += (BURROW_DEPTH - originalState[burrow].size);
+    if(to === burrow && originalState[burrow].size + 1 < BURROW_DEPTH)
+      distance += (BURROW_DEPTH - (originalState[burrow].size+1));
   }
 
   return distance * oneStep
@@ -359,10 +361,10 @@ function getAvailableMoveLocations(from: Spot, spots: SpotsState, amphipodAtFrom
   for (const solo of HALLWAY) if (spots[solo] !== null) available.delete(solo);
   for (const duo of BURROWS) {
     const burrow = spots[duo];
-    if (burrow.size === 2) available.delete(duo);
+    if (burrow.size === BURROW_DEPTH) available.delete(duo);
 
     // Also make sure we can't move into a burrow unless it is empty of "strangers"
-    if (burrow.size > 0 && burrow.peek() !== amphipodAtFromSpot)
+    if (burrow.size > 0 && burrow.array.some(x => x !== amphipodAtFromSpot))
       available.delete(duo);
   }
 
@@ -385,7 +387,7 @@ function getAvailableMoveLocations(from: Spot, spots: SpotsState, amphipodAtFrom
   //now include logic that says, if we are in the hallway, the amphipod can only go to its proper burrow next
   if (HALLWAY.includes(from as any)) {
     const dest_burrow = amphipodAtFromSpot.toLowerCase();
-    const openBurrows = spots[dest_burrow].size < 2 ? [dest_burrow as Spot] : [];
+    const openBurrows = spots[dest_burrow].size < BURROW_DEPTH ? [dest_burrow as Spot] : [];
     available = available.intersect(new EnhancedSet(openBurrows));
   }
 
@@ -426,34 +428,48 @@ function getAvailableMoveLocations(from: Spot, spots: SpotsState, amphipodAtFrom
 
 // console.dir(getAvailableMoveLocations("v", foob, "D"));
 
-function printBurrows(spots: SpotsState) {
-  const {a,b,c,d,t,u,v,w,x,y,z} = spots;
-  const a0 = a.array[0] ?? ' ', a1 = a.array[1] ?? ' '
-  const b0 = b.array[0] ?? ' ', b1 = b.array[1] ?? ' '
-  const c0 = c.array[0] ?? ' ', c1 = c.array[1] ?? ' '
-  const d0 = d.array[0] ?? ' ', d1 = d.array[1] ?? ' '
-
-  const [_t, _u, _v, _w, _x, _y, _z] = [t, u, v, w, x, y, z].map(x => x ?? ' ');
+function printBurrows(spots: SpotsState | StateKey) {
+  let _a, _b, _c, _d, _t, _u, _v, _w, _x, _y, _z;
+  if(typeof spots == 'string') {
+    const _spots = [...spots];
+    [_a, _b, _c, _d] = [_spots.slice(0,4), _spots.slice(4,8), _spots.slice(8,12), _spots.slice(12, 16)].map(y => y.map(x => x === '-' ? '.' : x));
+    [_t, _u, _v, _w, _x, _y, _z] = _spots.slice(-7).map((x) => x == '-' ? '.' : x);
+  }
+  else {
+    const {a,b,c,d,t,u,v,w,x,y,z} = spots;
+    [_a, _b, _c, _d] = [a,b,c,d].map(stack => stack.array.map(x => x === null ? '.' : x));
+    [_t, _u, _v, _w, _x, _y, _z] = [t, u, v, w, x, y, z].map(x => x ?? '.');
+  }
 
   const burrows = ''+
  `|-----------|` + '\n'+
- `|${_t}${_u} ${_x} ${_y} ${_z} ${_v}${_w}|` + '\n'+
- `|-|${a1}|${b1}|${c1}|${d1}|-|` + '\n'+
- `  |${a0}|${b0}|${c0}|${d0}|` + '\n'+
+ `|${_t}${_u}.${_x}.${_y}.${_z}.${_v}${_w}|` + '\n'+
+
+  (PART_ONE ?
+  `|-|${_a[1]}|${_b[1]}|${_c[1]}|${_d[1]}|-|` + '\n' :
+  `|-|${_a[3]}|${_b[3]}|${_c[3]}|${_d[3]}|-|` + '\n'+
+  `  |${_a[2]}|${_b[2]}|${_c[2]}|${_d[2]}|` + '\n'+
+  `  |${_a[1]}|${_b[1]}|${_c[1]}|${_d[1]}|` + '\n'
+  ) +
+
+ `  |${_a[0]}|${_b[0]}|${_c[0]}|${_d[0]}|` + '\n'+
  `  |-------|` + '\n'
 
  console.log(burrows)
  return burrows
 }
 
-
-
-/** 
- * 
+/**
+ *
  * wrong tries
  * 15324 is too high
  * 15438 <-- shouldnt it also be too high
- * 
+ *
  * 15322 is the answer for Part 1
- * 
+ *
+ *
+ * Part 2 real: 56928, 56808 is too high
+ * Part 2 sample: we got too low somehow?? should be 44169
+ * 43199 too low
+ *
  * */
