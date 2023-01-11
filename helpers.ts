@@ -53,6 +53,23 @@ export function pad2DArray<T>(
   return newArray;
 }
 
+export function findFirstDupe<T>(array: T[], 
+  sortFunction: ((a:T,b:T) => 0|-1|1) = (a,b)=>(a < b ? -1 : a > b ? 1 : 0), 
+  equalityFunction: (a:T,b:T) => boolean = (a,b)=>a===b) 
+{
+  const sorted = [...array].sort(sortFunction)
+  try{
+    sorted.reduce((acc, cur) => {
+      if (equalityFunction(acc, cur)) throw cur;
+      return cur
+    })
+  }
+  catch(item) {
+    return item as T
+  }
+  return false;
+}
+
 export function print2DArray<T>(array: T[][]) {
   const string = array.map((x) => x.join("")).join("\n");
   console.log(string + '\n');
@@ -154,5 +171,39 @@ export class CoordSet implements Set<[number, number]> {
 
   get [Symbol.toStringTag] () {
     return 'CoordSet'
+  }
+}
+
+export class FixedStack<T> {
+  readonly #array = new Array<T>();
+  readonly #fixedsize: number;
+
+  constructor(val: number | FixedStack<T>) {
+    if(typeof val === 'number')
+      this.#fixedsize = val;
+    else {
+      //this is like a copy constructor
+      this.#fixedsize = val.#fixedsize
+      this.#array = [...val.#array]
+    }
+  }
+
+  push(item: T | T[]) {
+    const _item = (item instanceof Array<T>) ? item : [item]
+
+    if (this.#array.length + _item.length <= this.#fixedsize)
+      return this.#array.push(..._item);
+
+    else return false;
+  }
+
+  pop = () => this.size !== 0 ? this.#array.pop() as T : undefined;
+  peek = () => this.#array[this.#array.length - 1];
+
+  get size() { return this.#array.length }
+  get array() { return [...this.#array]}
+
+  get [Symbol.toStringTag] () {
+    return this.#array.toString()
   }
 }

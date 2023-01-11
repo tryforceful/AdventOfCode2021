@@ -1,0 +1,146 @@
+inp w,inp w,inp w,inp w,inp w,inp w,inp w,inp w,inp w,inp w,inp w,inp w,inp w,inp w,
+mul x 0,mul x 0,mul x 0,mul x 0,mul x 0,mul x 0,mul x 0,mul x 0,mul x 0,mul x 0,mul x 0,mul x 0,mul x 0,mul x 0,
+add x z,add x z,add x z,add x z,add x z,add x z,add x z,add x z,add x z,add x z,add x z,add x z,add x z,add x z,
+mod x 26,mod x 26,mod x 26,mod x 26,mod x 26,mod x 26,mod x 26,mod x 26,mod x 26,mod x 26,mod x 26,mod x 26,mod x 26,mod x 26,
+div z 1,div z 1,div z 1,div z 1,div z 26,div z 26,div z 1,div z 26,div z 1,div z 26,div z 1,div z 26,div z 26,div z 26, <--
+add x 13,add x 13,add x 10,add x 15,add x -8,add x -10,add x 11,add x -3,add x 14,add x -4,add x 14,add x -5,add x -8,add x -11, <--
+eql x w,eql x w,eql x w,eql x w,eql x w,eql x w,eql x w,eql x w,eql x w,eql x w,eql x w,eql x w,eql x w,eql x w,
+eql x 0,eql x 0,eql x 0,eql x 0,eql x 0,eql x 0,eql x 0,eql x 0,eql x 0,eql x 0,eql x 0,eql x 0,eql x 0,eql x 0,
+mul y 0,mul y 0,mul y 0,mul y 0,mul y 0,mul y 0,mul y 0,mul y 0,mul y 0,mul y 0,mul y 0,mul y 0,mul y 0,mul y 0,
+add y 25,add y 25,add y 25,add y 25,add y 25,add y 25,add y 25,add y 25,add y 25,add y 25,add y 25,add y 25,add y 25,add y 25,
+mul y x,mul y x,mul y x,mul y x,mul y x,mul y x,mul y x,mul y x,mul y x,mul y x,mul y x,mul y x,mul y x,mul y x,
+add y 1,add y 1,add y 1,add y 1,add y 1,add y 1,add y 1,add y 1,add y 1,add y 1,add y 1,add y 1,add y 1,add y 1,
+mul z y,mul z y,mul z y,mul z y,mul z y,mul z y,mul z y,mul z y,mul z y,mul z y,mul z y,mul z y,mul z y,mul z y,
+mul y 0,mul y 0,mul y 0,mul y 0,mul y 0,mul y 0,mul y 0,mul y 0,mul y 0,mul y 0,mul y 0,mul y 0,mul y 0,mul y 0,
+add y w,add y w,add y w,add y w,add y w,add y w,add y w,add y w,add y w,add y w,add y w,add y w,add y w,add y w,
+add y 15,add y 16,add y 4,add y 14,add y 1,add y 5,add y 1,add y 3,add y 3,add y 7,add y 5,add y 13,add y 3,add y 10, <--
+mul y x,mul y x,mul y x,mul y x,mul y x,mul y x,mul y x,mul y x,mul y x,mul y x,mul y x,mul y x,mul y x,mul y x,
+add z y,add z y,add z y,add z y,add z y,add z y,add z y,add z y,add z y,add z y,add z y,add z y,add z y,add z y,
+
+x,x,x,x,D,D,x,D,x,D,x,D,D,D
+Ds are digits which reduce the z value
+
+// PSEUDOCODE:
+//
+// let z;
+// for(1..14)
+//   w = digit() //1 thru 9
+//
+//   const BOOL_TEST = w !== (z % 26 + row6)
+//
+//   if(row6 < 0) z /= 26
+//
+//   if(BOOL_TEST) {
+//     z *= 26
+//     z += (w+row16)
+//   }
+
+So we want to find when
+  [w - row6] = remainder_from_previous_iteration_on_stack (which is w+row16 from a previous pair)
+
+  //find all of these:
+  digit_prev + row16_prev + row6_cur = digit_cur
+
+
+I want BOOL_TEST to be false for every digit to make z===0, as it starts.
+But row_6_nums are only sometimes negative so it's impossible to make w===row_6_num in every case
+
+Or rather, z can't be greater than 26 before the last digit, because it is sometimes truncated
+z gets /=26 7 times, so we can afford to let it grow 7 times
+
+in fact, 7 digits can reduce z and 7 digits inflate z
+row 6 being negative and row 5 being /=26 match up!
+
+
+const row6 = [13,13,10,15,-8,-10,11,-3,14,-4,14,-5,-8,-11]
+const row16 = [15,16,4,14,1,5,1,3,3,7,5,13,3,10]
+
+
+// Pairs match in a push/pop stack-like manner:
+
+// [row6, row16]
+[
+  [ 13, 15 ],         // a
+    [ 13, 16 ],       // b
+      [ 10, 4 ],      // c
+        [ 15, 14 ],   // d
+        [ -8, 1 ],    // e
+      [ -10, 5 ],     // f
+        [ 11, 1 ],    // g
+        [ -3, 3 ],    // h
+        [ 14, 3 ],    // i
+        [ -4, 7 ],    // j
+        [ 14, 5 ],    // k
+        [ -5, 13 ],   // l
+    [ -8, 3 ],        // m
+  [ -11, 10 ]         // n
+]
+
+  //find all of these:
+  digit_prev + row16_prev + row6_cur = digit_cur
+
+// let digits be written a-n (1 to 14) as above
+
+n = a + 15 - 11     = a + 4
+m = b + 16 - 8      = b + 8
+l = k + 5 - 5       = k
+j = i + 3 - 4       = i - 1
+h = g + 1 - 3       = g - 2
+f = c + 4 - 10      = c - 6
+e = d + 14 - 8      = d + 6
+
+so the digits will be:
+[
+  a,
+  b,
+  c,
+  d,
+  d+6,
+  c-6,
+  g,
+  g-2,
+  i,
+  i-1,
+  k,
+  k,
+  b+8,
+  a+4,
+]
+for [a,b,c,d,g,i,k] each in 1-9 inclusive
+but with the extra restraint that the resolved values also must be 1-9
+
+// Using a base26 system writing with a-z representing 0-25
+// options for each z's remainder
+[
+  'pqrstuvwx', //16-24
+  'qrstuvwxy', //17-25
+  'efghijklm', //5-13
+  'opqrstuvw', //15-23
+  '', // popped r-8 must === [0,9]    --> 7-9 only
+  '', // popped r-10 must === [0,9]   --> 1-3 only
+  'bcdefghij', //2-10
+  '', // popped r-3 must === [0,9]    --> 1-7 only
+  'defghijkl', //4-12
+  '', // popped r-4 must === [0,9]    --> 1-8 only
+  'fghijklmn', //6-14
+  '', // popped r-5 must === [0,9]    --> 1-9 (all)
+  '', // popped r-8 must === [0,9]    --> 9 only
+  ''  // popped r-11 must === [0,9]   --> 5-9 only
+]
+
+[
+  'pqrstuvwx', //16-24                --> 1-5 only
+  'qrstuvwxy', //17-25                --> 1 only!
+  'efghijklm', //5-13                 --> 7-9 only
+  'opqrstuvw', //15-23                --> 1-3 only
+  '', // popped r-8 must === [0,9]    --> 7-9 only
+  '', // popped r-10 must === [0,9]   --> 1-3 only
+  'bcdefghij', //2-10                 --> 3-9 only
+  '', // popped r-3 must === [0,9]    --> 1-7 only
+  'defghijkl', //4-12                 --> 2-9 only
+  '', // popped r-4 must === [0,9]    --> 1-8 only
+  'fghijklmn', //6-14                 --> 1-9 (all)
+  '', // popped r-5 must === [0,9]    --> 1-9 (all)
+  '', // popped r-8 must === [0,9]    --> 9 only
+  ''  // popped r-11 must === [0,9]   --> 5-9 only
+]
