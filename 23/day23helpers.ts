@@ -1,8 +1,4 @@
-export const SAMPLE = true;
-export const PART_ONE = true;
-export const BURROW_DEPTH = PART_ONE ? 2 : 4;
-
-import type { FixedStack } from "../helpers";
+import { FixedStack } from "../helpers";
 import { EnhancedSet } from "datastructures-js";
 
 export type Amphipod = 'A'|'B'|'C'|'D';
@@ -70,7 +66,8 @@ export function getScoreFromThisMove(
   amphipod: Amphipod,
   from: Spot,
   to: Spot,
-  originalState: SpotsState
+  originalState: SpotsState,
+  BURROW_DEPTH: 2 | 4
 ) {
   const oneStep = 10 ** (amphipod.charCodeAt(0) - 65);
   let distance = fetchDistance(from, to);
@@ -89,9 +86,10 @@ export function getScoreFromThisMove(
 export function getAvailableMoveLocations(
   spots: SpotsState,
   from: Spot,
-  amphipodAtFromSpot: Amphipod
+  amphipodAtFromSpot: Amphipod,
+  BURROW_DEPTH: 2 | 4
 ): Spot[] {
-  let available = new EnhancedSet<Spot>([..."abcdtuvwxyz"] as Spot[]);
+  let available = new EnhancedSet<Spot>([...ORDER] as Spot[]);
   const dest_burrow = amphipodAtFromSpot.toLowerCase() as "a" | "b" | "c" | "d";
 
   // if we are in the hallway, the amphipod can only go to its proper burrow next
@@ -131,7 +129,30 @@ export function getAvailableMoveLocations(
   return available.toArray();
 }
 
-export function printBurrows(spots: SpotsState | StateKey) {
+export function resolveAmphipod(
+  maybeAmphipod: Amphipod | FixedStack<Amphipod> | null
+): Amphipod {
+  if (!maybeAmphipod) throw "Can't resolve; amphi is null";
+  if (maybeAmphipod instanceof FixedStack) {
+    if (maybeAmphipod.size <= 0) throw "Stack is empty";
+    return maybeAmphipod.peek();
+  }
+  return maybeAmphipod;
+}
+
+export function generateCameFromList(cameFrom: Map<string, [string, number]>, BURROW_DEPTH: 2 | 4) {
+  // generate "came from" list
+  let x = "AAAA|BBBB|CCCC|DDDD|-------",
+    d_time = 0;
+  printBurrows("AAAA|BBBB|CCCC|DDDD|-------", BURROW_DEPTH);
+  while (cameFrom.has(x)) {
+    [x, d_time] = cameFrom.get(x) ?? ["", 0];
+    console.log(`cost ${d_time} ^`);
+    printBurrows(x, BURROW_DEPTH);
+  }
+}
+
+export function printBurrows(spots: SpotsState | StateKey, BURROW_DEPTH: 2 | 4) {
   let _a, _b, _c, _d, _t, _u, _v, _w, _x, _y, _z;
   if (typeof spots == "string") {
     const _spots = [...spots];
@@ -153,23 +174,15 @@ export function printBurrows(spots: SpotsState | StateKey) {
   }
 
   const burrows =
-    "" +
-    `|-----------|` +
-    "\n" +
-    `|${_t}${_u}.${_x}.${_y}.${_z}.${_v}${_w}|` +
-    "\n" +
-    (PART_ONE
-      ? `|-|${_a[1]}|${_b[1]}|${_c[1]}|${_d[1]}|-|` + "\n"
-      : `|-|${_a[3]}|${_b[3]}|${_c[3]}|${_d[3]}|-|` +
-        "\n" +
-        `  |${_a[2]}|${_b[2]}|${_c[2]}|${_d[2]}|` +
-        "\n" +
-        `  |${_a[1]}|${_b[1]}|${_c[1]}|${_d[1]}|` +
-        "\n") +
-    `  |${_a[0]}|${_b[0]}|${_c[0]}|${_d[0]}|` +
-    "\n" +
-    `  |-------|` +
-    "\n";
+`|-----------|\n` +
+`|${_t}${_u}.${_x}.${_y}.${_z}.${_v}${_w}|\n` +
+( BURROW_DEPTH === 2
+  ? `|-|${_a[1]}|${_b[1]}|${_c[1]}|${_d[1]}|-|\n`
+  : `|-|${_a[3]}|${_b[3]}|${_c[3]}|${_d[3]}|-|\n` +
+    `  |${_a[2]}|${_b[2]}|${_c[2]}|${_d[2]}|\n` +
+    `  |${_a[1]}|${_b[1]}|${_c[1]}|${_d[1]}|\n`) +
+`  |${_a[0]}|${_b[0]}|${_c[0]}|${_d[0]}|\n` +
+`  |-------|\n`;
 
   console.log(burrows);
   return burrows;
