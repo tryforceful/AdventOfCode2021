@@ -17,7 +17,7 @@ import {
 } from "./day23helpers";
 import type { Amphipod, Spot, State, SpotsState, StateKey } from "./day23helpers";
 
-const DEBUG = true;
+const DEBUG = false;
 
 function shuffleAmphipods(SAMPLE = true, PART_ONE = true) {
 

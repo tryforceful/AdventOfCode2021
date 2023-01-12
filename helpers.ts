@@ -178,13 +178,17 @@ export class FixedStack<T> {
   readonly #array = new Array<T>();
   readonly #fixedsize: number;
 
-  constructor(val: number | FixedStack<T>) {
+  constructor(val: number | FixedStack<T> | T[]) {
     if(typeof val === 'number')
       this.#fixedsize = val;
-    else {
+    else if(val instanceof FixedStack) {
       //this is like a copy constructor
       this.#fixedsize = val.#fixedsize
       this.#array = [...val.#array]
+    }
+    else {
+      this.#fixedsize = val.length;
+      this.#array = [...val]
     }
   }
 
@@ -200,6 +204,7 @@ export class FixedStack<T> {
   pop = () => this.size !== 0 ? this.#array.pop() as T : undefined;
   peek = () => this.#array[this.#array.length - 1];
 
+  get maxsize() { return this.#fixedsize }
   get size() { return this.#array.length }
   get array() { return [...this.#array]}
 
