@@ -1,23 +1,27 @@
 import * as fs from "fs";
 import * as help from "../helpers";
+import assert from "assert";
 
 import { FixedStack } from "../helpers";
 import { cloneDeepWith, type CloneDeepWithCustomizer } from "lodash";
 import { Heap, DefaultMap } from 'mnemonist'
 
 import {
-  fetchDistance,
   getAvailableMoveLocations,
   getScoreFromThisMove,
   printBurrows,
   resolveAmphipod,
+  generateCameFromList,
   BURROWS,
   HALLWAY,
 } from "./day23helpers";
-import type { Amphipod, Spot, SpotsState, StateKey } from "./day23helpers";
+import type { Amphipod, Spot, State, SpotsState, StateKey } from "./day23helpers";
 
+const DEBUG = true;
 
 function shuffleAmphipods(SAMPLE = true, PART_ONE = true) {
+
+  // Import burrows list
 
   const data = fs
     .readFileSync(SAMPLE ? "./input_sample.txt" : "./input.txt", "utf8")
@@ -56,8 +60,8 @@ function shuffleAmphipods(SAMPLE = true, PART_ONE = true) {
     z: null,
   };
 
+  // Calculate initial spots that need moving
   const needToMove: Spot[] = []
-
   for(let i = BURROW_DEPTH-1; i >= 0; i--)
     for(const j in BURROWS) {
       const burrow = BURROWS[j]
@@ -66,61 +70,24 @@ function shuffleAmphipods(SAMPLE = true, PART_ONE = true) {
       if(burrows[i][j].toLowerCase() !== burrow || needToMove.includes(burrow))
         needToMove.push(burrow)
     }
-  console.log("\nneed to move these spaces:", needToMove.sort().join())
-
+  console.log("\nNeed to move amphipods in these burrow spots:", needToMove.sort().join())
 
   /**
    * We need to make sure this heuristic function is at least <= the true cost
    *  of the iterations from state --> end_state, in order to ensure a shortest path
    * So we underestimate the cost here.
-   * The closer we get to the true cost while staying under, the faster it performs.
+   * The closer we get to the true cost while staying under, the faster it should performs.
    * http://theory.stanford.edu/~amitp/GameProgramming/Heuristics.html
    */
   function h (state: State) {
-    const totalEstimate = state.needToMove.map(spot => {
-      const amphi = resolveAmphipod(state.spots[spot]);
+    return state.needToMove.map(spot => {
+      const amphipod = resolveAmphipod(state.spots[spot]);
+      const destination = amphipod.toLowerCase() as Spot
 
-      const destination = amphi.toLowerCase() as Spot
-      const oneStep = 10 ** (amphi.charCodeAt(0) - 65);
-
-      const dist = fetchDistance(destination, spot)
-      return dist * oneStep;
+      return getScoreFromThisMove(amphipod, spot, destination, state.spots);
 
     }).reduce(help.sum, 0)
-
-    // USE getScoreFromThisMove
-
-    return totalEstimate
   }
-
-  const cloneFixedStacksCorrectly: CloneDeepWithCustomizer<SpotsState> = (value) =>
-    (value instanceof FixedStack) ? new FixedStack(value) : undefined;
-
-  type State = {
-    spots: SpotsState;
-    needToMove: Spot[];
-  };
-
-  const gscore = new DefaultMap<StateKey, number>(() => Infinity)
-  const fscore = new DefaultMap<StateKey, number>(() => Infinity)
-  const openPQ = new Heap<State>((a: State, b: State) => {
-      const _a = makeKey(a), _b = makeKey(b);
-      return fscore.get(_a) < fscore.get(_b) ? -1 : fscore.get(_a) > fscore.get(_b) ? 1 : 0
-    }
-  );
-  const openSet = new Set<StateKey>
-  const cameFrom = new Map<string, [string, number]>();
-
-  const initialstate = { spots: initialSpots, needToMove };
-  const initialKey = makeKey(initialstate);
-
-  gscore.set(initialKey, 0);
-  fscore.set(initialKey, h(initialstate));
-
-  printBurrows(initialstate.spots, BURROW_DEPTH)
-
-  openPQ.push(initialstate)
-  openSet.add(makeKey(initialstate))
 
   function makeKey(state: State): StateKey {
     const [a,b,c,d,t,u,v,w,x,y,z] = Object.values(state.spots);
@@ -129,71 +96,75 @@ function shuffleAmphipods(SAMPLE = true, PART_ONE = true) {
       .map(i => i instanceof FixedStack ? i.array.join('').padEnd(BURROW_DEPTH, '-') : i ?? '-').join('')
   }
 
-  let finalMaxScore = Infinity;
+  const cloneFixedStacksCorrectly: CloneDeepWithCustomizer<SpotsState> = (value) =>
+    (value instanceof FixedStack) ? new FixedStack(value) : undefined;
+
+  // A* instantiate
+  const gscore = new DefaultMap<StateKey, number>(() => Infinity)
+  const fscore = new DefaultMap<StateKey, number>(() => Infinity)
+  const openPQ = new Heap<State>((a: State, b: State) =>
+    help.sorter(fscore.get(makeKey(a)), fscore.get(makeKey(b)))
+  );
+  const openSet = new Set<StateKey>
+  const cameFrom = new Map<string, [string, number]>();
+
+  // A* initialize
+  const initialState = { spots: initialSpots, needToMove };
+  const initialKey = makeKey(initialState);
+
+  gscore.set(initialKey, 0);
+  fscore.set(initialKey, h(initialState));
+  openPQ.push(initialState)
+  openSet.add(initialKey);
+
+  printBurrows(initialState.spots, BURROW_DEPTH);
+
   let iterations = 0;
-  let endsHit = 0
 
   console.time("timestamp")
   while(openPQ.size) {
 
-    // console.log(openPQ
-    //   .toArray()
-    //   .slice(0,5)
-    //   .map((x) => [makeKey(x), fscore.get(makeKey(x))]))
     const state = openPQ.pop();
     if (!state) throw "Woah";
 
     const stateKey = makeKey(state);
     openSet.delete(stateKey);
-    // console.dir([stateKey, fscore.get(stateKey)])
 
-    // if(iterations % 5000 === 0) {
-    //   console.dir({iterations, endsHit})
-    //   console.dir([...fscore.entries()].slice(-10));
-    // }
+    if (!state.needToMove.length) { // Reached the end!
+      const finalMaxScore = gscore.get(stateKey);
+      console.timeEnd("timestamp");
 
-    if (!state.needToMove.length) {
-      // We are theoretically done!
+      console.log("Score is", finalMaxScore);
 
-      if (gscore.get(stateKey) < finalMaxScore) {
-        finalMaxScore = gscore.get(stateKey);
-        console.log(`We have an updated min score of ${finalMaxScore}`);
-        console.timeLog("timestamp");
-        // return stateKey;
-      }
-      endsHit++;
-
-      console.dir({
+      if(DEBUG) console.dir({
         iterations,
         remaininginOpenset: openSet.size,
+        scores: { finalMaxScore, initial_h_estimate: h(initialState) },
+        fscore_size: fscore.size,
       });
-      continue;
-      //break;
+
+      if(DEBUG) generateCameFromList(cameFrom, stateKey, BURROW_DEPTH);
+
+      return finalMaxScore;
     }
 
     for (const moveFromSpot of [...new Set(state.needToMove)]) {
-      // Get amphipod value
       const amphipod = resolveAmphipod(state.spots[moveFromSpot]);
 
       const availableSpots = getAvailableMoveLocations(
         state.spots,
         moveFromSpot,
-        amphipod,
-        BURROW_DEPTH
+        amphipod
       );
 
       for (const moveToSpot of availableSpots) {
         const newScore =
           gscore.get(stateKey) +
-          getScoreFromThisMove(amphipod, moveFromSpot, moveToSpot, state.spots, BURROW_DEPTH);
-
-        if (newScore > finalMaxScore)
-          // we're already over the bounds of what the min score can be so don't progress further!
-          continue;
+          getScoreFromThisMove(amphipod, moveFromSpot, moveToSpot, state.spots);
 
         const spots: SpotsState = cloneDeepWith(state.spots, cloneFixedStacksCorrectly);
 
-        // make the move. delete from from where it was
+        // make the move. delete Amphipod from where it was
         const from = spots[moveFromSpot];
         if (from instanceof FixedStack) {
           from.pop();
@@ -202,13 +173,12 @@ function shuffleAmphipods(SAMPLE = true, PART_ONE = true) {
           spots[moveFromSpot as keyof typeof HALLWAY] = null;
         }
 
-        //move "from" to the new location
+        // record Amphipod at the new location
         if (~(BURROWS as readonly string[]).indexOf(moveToSpot)) {
           const burrow = spots[moveToSpot] as FixedStack<Amphipod>;
           burrow.push(amphipod);
-        } else {
-          spots[moveToSpot as keyof typeof HALLWAY] = amphipod;
         }
+        else spots[moveToSpot as keyof typeof HALLWAY] = amphipod;
 
         // handle "still need to move" state
         const newNeedToMove = [...state.needToMove];
@@ -225,7 +195,7 @@ function shuffleAmphipods(SAMPLE = true, PART_ONE = true) {
         if (alreadyScored <= newScore)
           continue; // we found a better path to this state somehow
 
-        cameFrom.set(newStateKey, [stateKey, newScore-gscore.get(stateKey)])
+        if(DEBUG) cameFrom.set(newStateKey, [stateKey, newScore-gscore.get(stateKey)])
         gscore.set(newStateKey, newScore);
         fscore.set(newStateKey, newScore + h(newState));
 
@@ -238,40 +208,12 @@ function shuffleAmphipods(SAMPLE = true, PART_ONE = true) {
       }
     }
   }
-  console.timeEnd("timestamp");
-
-  console.dir({
-    iterations,
-    scores: { finalMaxScore, initial_h_estimate: h(initialstate) },
-    fscore_size: fscore.size,
-  });
 }
 
-shuffleAmphipods(true, true);
+assert(shuffleAmphipods(true, true) === 12521); // part 1 sample, 275ms
 console.log('----------------------------------')
-shuffleAmphipods(true, false);
+assert(shuffleAmphipods(false, true) === 15322) // part 1, 800ms
 console.log('----------------------------------')
-shuffleAmphipods(false, true);
+assert(shuffleAmphipods(true, false) === 44169) // part 2 sample, 8s
 console.log('----------------------------------')
-shuffleAmphipods(false, false);
-
-// fs.writeFileSync("fscore.txt", JSON.stringify([...fscore.entries()]));
-
-//openSet
-
-// const fff = [...fscore.entries()].sort( (a,b) =>{
-//   return a[1] < b[1] ? -1 : a[1] > b[1] ? 1 :0
-// });
-
-// fs.writeFileSync("fscore.txt", JSON.stringify(fff));
-
-// console.dir([...fscore.entries()].slice(-30))
-
-
-/**
- * Part 1 sample answer : 12521
- * 15322 is the real answer for Part 1
- *
- * Part 2 sample answer: 44169
- * Part 2 answer: 56324
- * */
+assert(shuffleAmphipods(false, false) === 56324) // part 2a, 10s

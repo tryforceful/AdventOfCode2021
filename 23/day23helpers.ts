@@ -18,6 +18,11 @@ export type SpotsState = {
   z: Amphipod | null;
 };
 
+export type State = {
+  spots: SpotsState;
+  needToMove: Spot[];
+};
+
 export type StateKey = string;
 
 // CONSTS
@@ -55,7 +60,7 @@ const BLOCKER_SPOTS = Object.keys(BLOCKED_MAP) as unknown as keyof typeof BLOCKE
 
 // HELPER FUNCTIONS
 
-export function fetchDistance(from: Spot, to: Spot) {
+function fetchDistance(from: Spot, to: Spot) {
   const fidx = ORDER.indexOf(from),
     tidx = ORDER.indexOf(to);
   if (fidx < 0 || tidx < 0) throw "Improper from/to indices!";
@@ -66,11 +71,12 @@ export function getScoreFromThisMove(
   amphipod: Amphipod,
   from: Spot,
   to: Spot,
-  originalState: SpotsState,
-  BURROW_DEPTH: 2 | 4
+  originalState: SpotsState
 ) {
   const oneStep = 10 ** (amphipod.charCodeAt(0) - 65);
   let distance = fetchDistance(from, to);
+
+  const BURROW_DEPTH = originalState.a.maxsize;
 
   // consider if we were deeper in the burrows (requiring +1s)
   for (const burrow of BURROWS) {
@@ -80,17 +86,26 @@ export function getScoreFromThisMove(
       distance += BURROW_DEPTH - (originalState[burrow].size + 1);
   }
 
+  // Hack for improved h(). This'll never be hit for a true gscore scoring,
+  // because we'll never score a move from (from -> to===from).
+  // If h() is asking for a score approximation from burrow q to q for a "needs to move" amphipod
+  // and the distance after the above steps is still 0, it means this amphipod
+  // is in the way in the burrow and must at least move aside for others to escape
+  // This is, at minimum, 2 distance out and 2 distance in.
+  if(!distance && from===to)
+    distance = 4;
+
   return distance * oneStep;
 }
 
 export function getAvailableMoveLocations(
   spots: SpotsState,
   from: Spot,
-  amphipodAtFromSpot: Amphipod,
-  BURROW_DEPTH: 2 | 4
+  amphipodAtFromSpot: Amphipod
 ): Spot[] {
   let available = new EnhancedSet<Spot>([...ORDER] as Spot[]);
   const dest_burrow = amphipodAtFromSpot.toLowerCase() as "a" | "b" | "c" | "d";
+  const BURROW_DEPTH = spots.a.maxsize
 
   // if we are in the hallway, the amphipod can only go to its proper burrow next
   if (HALLWAY.includes(from as any)) {
@@ -140,11 +155,9 @@ export function resolveAmphipod(
   return maybeAmphipod;
 }
 
-export function generateCameFromList(cameFrom: Map<string, [string, number]>, BURROW_DEPTH: 2 | 4) {
-  // generate "came from" list
-  let x = "AAAA|BBBB|CCCC|DDDD|-------",
-    d_time = 0;
-  printBurrows("AAAA|BBBB|CCCC|DDDD|-------", BURROW_DEPTH);
+export function generateCameFromList(cameFrom: Map<string, [string, number]>, finalKey: string, BURROW_DEPTH: 2 | 4) {
+  let x = finalKey,d_time = 0;
+  printBurrows(x, BURROW_DEPTH);
   while (cameFrom.has(x)) {
     [x, d_time] = cameFrom.get(x) ?? ["", 0];
     console.log(`cost ${d_time} ^`);
@@ -157,12 +170,13 @@ export function printBurrows(spots: SpotsState | StateKey, BURROW_DEPTH: 2 | 4) 
   if (typeof spots == "string") {
     const _spots = [...spots];
     [_a, _b, _c, _d] = [
-      _spots.slice(0, 4),
-      _spots.slice(5, 9),
-      _spots.slice(10, 14),
-      _spots.slice(15, 19),
+      _spots.splice(0, BURROW_DEPTH),
+      _spots.splice(1, BURROW_DEPTH),
+      _spots.splice(2, BURROW_DEPTH),
+      _spots.splice(3, BURROW_DEPTH),
     ].map((y) => y.map((x) => (x === "-" ? "." : x)));
-    [_t, _u, _v, _w, _x, _y, _z] = _spots
+
+    [_t, _u, _x, _y, _z, _v, _w] = _spots
       .slice(-7)
       .map((x) => (x == "-" ? "." : x));
   } else {
