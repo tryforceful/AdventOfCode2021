@@ -23,9 +23,6 @@ if(!PART_ONE)
 
 const BURROW_DEPTH = PART_ONE ? 2 : 4;
 
-// console.dir(data);
-// console.dir(burrows);
-
 
 /**
  * We will represent the structure with state variables like this:
@@ -75,7 +72,7 @@ const HALLWAY = ["t", "u", "v", "w", "x", "y", "z"] as const;
 
 const needToMove: Spot[] = []
 
-for(let i = BURROW_DEPTH-1; i >= 0; i--) {
+for(let i = BURROW_DEPTH-1; i >= 0; i--)
   for(const j in BURROWS) {
     const burrow = BURROWS[j]
     initialSpots[burrow].push(burrows[i][j]);
@@ -83,17 +80,17 @@ for(let i = BURROW_DEPTH-1; i >= 0; i--) {
     if(burrows[i][j].toLowerCase() !== burrow || needToMove.includes(burrow))
       needToMove.push(burrow)
   }
-}
+
 console.dir(needToMove)
 
 const BLOCKED_MAP = {
-  u: [["t"], [..."abcdvwxyz"]],
-  v: [["w"], [..."abcdtuxyz"]],
+  u: [[..."t"], [..."abcdvwxyz"]],
+  v: [[..."w"], [..."abcdtuxyz"]],
   x: [[..."tua"], [..."bcdvwyz"]],
   y: [[..."tuxab"], [..."vwzcd"]],
-  z: [[..."tuxyab"], [..."dvw"]],
-};
-const BLOCKER_SPOTS = Object.keys(BLOCKED_MAP) as Spot[];
+  z: [[..."tuxyabc"], [..."dvw"]],
+} as const;
+const BLOCKER_SPOTS = Object.keys(BLOCKED_MAP) as unknown as keyof typeof BLOCKED_MAP;
 
 const DISTANCE_GRID = [
 //     a,b,c,d,t,u,v,w,x,y,z
@@ -131,9 +128,6 @@ const openSet = new Set<StateKey>
 const cameFrom = new Map<string, [string, number]>();
 
 function h (state: State) {
-  // 0 - gscore.get(makeKey(state));
-  return 0
-
   const totalEstimate = state.needToMove.map(spot => {
     const maybeAmphi = state.spots[spot];
     if(maybeAmphi instanceof FixedStack) {
@@ -156,11 +150,10 @@ function h (state: State) {
 }
 
 const initialstate = { spots: initialSpots, needToMove };
-
 const initialKey = makeKey(initialstate);
+
 gscore.set(initialKey, 0);
 fscore.set(initialKey, h(initialstate));
-
 // console.dir(h(initialstate));
 
 printBurrows(initialstate.spots)
@@ -169,19 +162,17 @@ openPQ.push(initialstate)
 openSet.add(makeKey(initialstate))
 
 function makeKey(state: State): StateKey {
-  const spots = Object.values(state.spots)
-  return spots.map(i => i instanceof FixedStack<Amphipod> ? i.array.join('').padEnd(BURROW_DEPTH, '-') : i ?? '-').join('')
-  // console.log([...str.join('')].map(x => Number.parseInt(x,16)-9).join(''));
-  // console.log(str.join(""));
-  // return str.join()
+  const [a,b,c,d,t,u,v,w,x,y,z] = Object.values(state.spots);
+
+  return [a,'|',b,'|',c,'|',d,'|',t,u,x,y,z,v,w]
+    .map(i => i instanceof FixedStack<Amphipod> ? i.array.join('').padEnd(BURROW_DEPTH, '-') : i ?? '-').join('')
 }
 
 let finalMaxScore = Infinity;
-// let finalPath: string[] = []
 let iterations = 0;
 let endsHit = 0
 
-function PART1() {
+function shuffleAmphipods() {
 
   console.time('zelda')
   while(openPQ.size) {
@@ -194,62 +185,65 @@ function PART1() {
     if (!state) throw "Woah";
 
     const stateKey = makeKey(state);
-    // console.dir([stateKey, fscore.get(stateKey)])
     openSet.delete(stateKey);
+    // console.dir([stateKey, fscore.get(stateKey)])
 
     // if(iterations % 5000 === 0) {
-    //   console.dir({iterations, endsHit, key: stateKey, movesLeft: state.needToMove.length})
-    //   console.dir({openSet: openSet.size, openPQ: openPQ.size})
+    //   console.dir({iterations, endsHit})
     //   console.dir([...fscore.entries()].slice(-10));
     // }
 
     if (!state.needToMove.length) {
       // We are theoretically done!
-      // Eject this edge case into an array of final scores?
 
       if (gscore.get(stateKey) < finalMaxScore) {
         finalMaxScore = gscore.get(stateKey);
         console.log(`We have an updated min score of ${finalMaxScore}`);
-
         console.timeLog("zelda");
-
-        console.dir({
-          fscore: fscore.get(stateKey),
-          gscore: gscore.get(stateKey),
-        });
-
         // return stateKey;
       }
       endsHit++;
 
-      console.dir({ "we made it!": "", x: gscore.get(stateKey), iterations: iterations });
-      // continue;
+      console.dir({
+        iterations,
+        remaininginOpenset: openSet.size,
+      });
+      continue;
     }
 
     for (const moveFromSpot of [...new Set(state.needToMove)]) {
+      // Get amphipod value
       let from = state.spots[moveFromSpot];
+      if (from === null) throw "Impossible";
       let amphipod: Amphipod;
-      if (from === null) throw "Problem";
 
       if (from instanceof FixedStack) {
-        if (from.size <= 0) throw "blah";
-        amphipod = from.peek() as Amphipod;
+        if (from.size <= 0) throw "Impossible 2";
+        amphipod = from.peek();
       } else {
         amphipod = from;
       }
 
       const availableSpots = getAvailableMoveLocations(
-        moveFromSpot,
         state.spots,
+        moveFromSpot,
         amphipod
       );
-      // console.dir({moveFromSpot, availableSpots:availableSpots})
 
-      for (const moveToSpot of availableSpots.toArray()) {
-        const spots = cloneDeepWith(state.spots, cloneFixedStacksCorrectly);
+      for (const moveToSpot of availableSpots) {
+
+        const newScore =
+          gscore.get(stateKey) +
+          getScoreFromThisMove(amphipod, moveFromSpot, moveToSpot, state.spots);
+
+        if (newScore > finalMaxScore)
+          // we're already over the bounds of what the min score can be so don't progress further!
+          continue;
+
+        const spots = cloneDeepWith(state.spots, cloneFixedStacksCorrectly) as SpotsState;
 
         const from = spots[moveFromSpot];
-        if (from === null) throw "Problem";
+        if (from === null) throw "Impossible";
 
         // make the move. delete from from where it was
         if (from instanceof FixedStack) {
@@ -266,17 +260,6 @@ function PART1() {
           spots[moveToSpot as keyof typeof HALLWAY] = amphipod;
         }
 
-        const oldStateKey = makeKey(state);
-
-        const newScore =
-          gscore.get(oldStateKey) +
-          getScoreFromThisMove(amphipod, moveFromSpot, moveToSpot, state.spots);
-
-        if (newScore > finalMaxScore) {
-          // we're already over the bounds of what the min score can be so don't recurse further!
-          continue;
-        }
-
         // handle "still need to move" state
         const newNeedToMove = [...state.needToMove];
         const fromidx = newNeedToMove.indexOf(moveFromSpot);
@@ -284,54 +267,56 @@ function PART1() {
         if (moveToSpot.toUpperCase() !== amphipod)
           newNeedToMove.push(moveToSpot); // only add it back in if this amphipod hasn't come to rest
 
-        // console.dir({ moveFromSpot, moveToSpot, spots, score: newScore, newNeedToMove, });
-
-        // printBurrows(spots);
-
-        const newState: State = {  spots, needToMove: newNeedToMove, };
-
-        // if (state.movePath.length > needToMove.length*2) continue; // Can't possibly move more than this
-
         // Memoize
+        const newState: State = { spots, needToMove: newNeedToMove };
         const newStateKey = makeKey(newState);
 
         const alreadyScored = gscore.get(newStateKey);
-        if (alreadyScored && alreadyScored <= newScore) {
+        if (alreadyScored <= newScore)
           continue; // we found a better path to this state somehow
-        }
 
-        cameFrom.set(newStateKey, [stateKey, newScore-gscore.get(oldStateKey)])
+        cameFrom.set(newStateKey, [stateKey, newScore-gscore.get(stateKey)])
         gscore.set(newStateKey, newScore);
         fscore.set(newStateKey, newScore + h(newState));
-
-        iterations++;
 
         if (!openSet.has(newStateKey)) {
           openPQ.push(newState);
           openSet.add(newStateKey);
         }
+
+        iterations++;
       }
     }
   }
   console.timeEnd("zelda");
-  return ''
 }
-const endStateKey = PART1();
 
-console.dir({ iterations, finalMaxScore, openSet, gscoresize: gscore.size, fscoresize: fscore.size });
+shuffleAmphipods();
 
+fs.writeFileSync("fscore.txt", JSON.stringify([...fscore.entries()]));
 
+//openSet
+console.dir({ iterations, finalMaxScore, openSet: openSet.size, fscoresize: fscore.size });
 
-// // generate "came from" list
-// let x = endStateKey, d_time=0;
-// printBurrows(endStateKey);
-// while(cameFrom.has(x)) {
-//   [x, d_time] = cameFrom.get(x) ?? ['',0]
-//   console.log(`cost ${d_time} ^`);
-//   printBurrows(x)
-// }
+// (function generateCameFromList() {
+//   // generate "came from" list
+//   let x = endStateKey, d_time=0;
+//   printBurrows(endStateKey);
+//   while(cameFrom.has(x)) {
+//     [x, d_time] = cameFrom.get(x) ?? ['',0]
+//     console.log(`cost ${d_time} ^`);
+//     printBurrows(x)
+//   }
+// })
 
-// console.dir([...gscore.entries()].slice(0,10))
+// const fff = [...fscore.entries()].sort( (a,b) =>{
+//   return a[1] < b[1] ? -1 : a[1] > b[1] ? 1 :0
+// });
+
+// fs.writeFileSync("fscore.txt", JSON.stringify(fff));
+
+// console.dir([...fscore.entries()].slice(-30))
+
 
 // HELPER FUNCTIONS
 
@@ -354,18 +339,33 @@ function getScoreFromThisMove(amphipod: Amphipod, from: Spot, to: Spot, original
   return distance * oneStep
 }
 
-function getAvailableMoveLocations(from: Spot, spots: SpotsState, amphipodAtFromSpot: Amphipod): EnhancedSet<Spot> {
+function getAvailableMoveLocations(
+  spots: SpotsState,
+  from: Spot,
+  amphipodAtFromSpot: Amphipod
+): Spot[] {
   let available = new EnhancedSet<Spot>([..."abcdtuvwxyz"] as Spot[]);
+  const dest_burrow = amphipodAtFromSpot.toLowerCase() as "a" | "b" | "c" | "d";
+
+  // if we are in the hallway, the amphipod can only go to its proper burrow next
+  if (HALLWAY.includes(from as any)) {
+    if (spots[dest_burrow].size < BURROW_DEPTH)
+      available = new EnhancedSet([dest_burrow as Spot]);
+    else return [];
+  }
 
   // remove currently occupied spots
-  for (const solo of HALLWAY) if (spots[solo] !== null) available.delete(solo);
-  for (const duo of BURROWS) {
-    const burrow = spots[duo];
-    if (burrow.size === BURROW_DEPTH) available.delete(duo);
+  for (const hallspot of HALLWAY)
+    if (spots[hallspot]) available.delete(hallspot);
+  for (const burrow of BURROWS) {
+    const stack = spots[burrow];
 
-    // Also make sure we can't move into a burrow unless it is empty of "strangers"
-    if (burrow.size > 0 && burrow.array.some(x => x !== amphipodAtFromSpot))
-      available.delete(duo);
+    if (
+      stack.size === BURROW_DEPTH || // Burrow is full
+      burrow !== dest_burrow || // Burrow type doesn't match this Amphipod
+      stack.array.some((x) => x !== amphipodAtFromSpot) // Burrow still has a "stranger" in it
+    )
+      available.delete(burrow);
   }
 
   // consider blocking spots
@@ -373,10 +373,7 @@ function getAvailableMoveLocations(from: Spot, spots: SpotsState, amphipodAtFrom
     if (from !== key && spots[key] !== null) {
       // a blocking spot is occupied which will limit where we can go from "from"
       // find which side we're on and then limit the available set to that side
-      const [side1, side2] = BLOCKED_MAP[key as keyof typeof BLOCKED_MAP] as [
-        Spot[],
-        Spot[]
-      ];
+      const [side1, side2] = BLOCKED_MAP[key] as [Spot[], Spot[]];
       if (~side1.indexOf(from))
         available = available.intersect(new EnhancedSet(side1));
       else if (~side2.indexOf(from))
@@ -384,55 +381,14 @@ function getAvailableMoveLocations(from: Spot, spots: SpotsState, amphipodAtFrom
     }
   }
 
-  //now include logic that says, if we are in the hallway, the amphipod can only go to its proper burrow next
-  if (HALLWAY.includes(from as any)) {
-    const dest_burrow = amphipodAtFromSpot.toLowerCase();
-    const openBurrows = spots[dest_burrow].size < BURROW_DEPTH ? [dest_burrow as Spot] : [];
-    available = available.intersect(new EnhancedSet(openBurrows));
-  }
-
-  return available;
+  return available.toArray();
 }
-
-
-//Tests
-// console.dir(initialstate);
-// console.dir(getAvailableMoveLocations('a', initialstate.spots));
-// console.dir(getAvailableMoveLocations('b', initialstate.spots));
-// console.dir(getAvailableMoveLocations("z", initialstate.spots));
-
-// initialstate.spots.t = 'A'
-// initialstate.spots.x = 'A'
-// initialstate.spots.z = "A";
-// console.dir(initialstate);
-// console.dir(getAvailableMoveLocations("a", initialstate.spots));
-// console.dir(getAvailableMoveLocations("b", initialstate.spots));
-
-// let foob = {
-//   a: new FixedStack<Amphipod>(2),
-//   b: new FixedStack<Amphipod>(2),
-//   c: new FixedStack<Amphipod>(2),
-//   d: new FixedStack<Amphipod>(2),
-//   t: "A" as Amphipod,
-//   u: "A" as Amphipod,
-//   v: "D" as Amphipod,
-//   w: null,
-//   x: null,
-//   y: null,
-//   z: null,
-// };
-// foob.a.push(['C']);
-// foob.b.push(['C', 'C']);
-// foob.c.push(['C', 'C']);
-// foob.d.push(['D','D']);
-
-// console.dir(getAvailableMoveLocations("v", foob, "D"));
 
 function printBurrows(spots: SpotsState | StateKey) {
   let _a, _b, _c, _d, _t, _u, _v, _w, _x, _y, _z;
   if(typeof spots == 'string') {
     const _spots = [...spots];
-    [_a, _b, _c, _d] = [_spots.slice(0,4), _spots.slice(4,8), _spots.slice(8,12), _spots.slice(12, 16)].map(y => y.map(x => x === '-' ? '.' : x));
+    [_a, _b, _c, _d] = [_spots.slice(0,4), _spots.slice(5,9), _spots.slice(10,14), _spots.slice(15, 19)].map(y => y.map(x => x === '-' ? '.' : x));
     [_t, _u, _v, _w, _x, _y, _z] = _spots.slice(-7).map((x) => x == '-' ? '.' : x);
   }
   else {
@@ -460,16 +416,9 @@ function printBurrows(spots: SpotsState | StateKey) {
 }
 
 /**
+ * Part 1 sample answer : 12521
+ * 15322 is the real answer for Part 1
  *
- * wrong tries
- * 15324 is too high
- * 15438 <-- shouldnt it also be too high
- *
- * 15322 is the answer for Part 1
- *
- *
- * Part 2 real: 56928, 56808 is too high
- * Part 2 sample: we got too low somehow?? should be 44169
- * 43199 too low
- *
+ * Part 2 sample answer: 44169
+ * Part 2 answer: 56324
  * */
