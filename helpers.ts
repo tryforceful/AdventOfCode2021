@@ -53,9 +53,9 @@ export function pad2DArray<T>(
   return newArray;
 }
 
-export function findFirstDupe<T>(array: T[], 
-  sortFunction: ((a:T,b:T) => 0|-1|1) = (a,b)=>(a < b ? -1 : a > b ? 1 : 0), 
-  equalityFunction: (a:T,b:T) => boolean = (a,b)=>a===b) 
+export function findFirstDupe<T>(array: T[],
+  sortFunction: ((a:T,b:T) => 0|-1|1) = (a,b)=>(a < b ? -1 : a > b ? 1 : 0),
+  equalityFunction: (a:T,b:T) => boolean = (a,b)=>a===b)
 {
   const sorted = [...array].sort(sortFunction)
   try{
@@ -68,6 +68,33 @@ export function findFirstDupe<T>(array: T[],
     return item as T
   }
   return false;
+}
+
+
+export function findMostFrequentElement<T>(array: T[],
+  toString: (input: T) => string = String)
+{
+  if(!array.length) return undefined;
+
+  const counts = new Map<string, number>;
+  const Ts = new Map<string, T>;
+
+  for(const el of array) {
+    const key = toString(el);
+    Ts.set(key, el);
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  const countResults = [...counts.entries()].sort((b,a) => sorter(a[1], b[1]))
+
+  const result: T[] = []
+  const maxVal = countResults[0][1];
+  while (countResults.length && countResults[0][1] === maxVal) {
+    const res = countResults.shift() as [string, number];
+    const theT = Ts.get(res[0]);
+    if(theT !== undefined) result.push(theT);
+  }
+
+  return result.length <= 1 ? result[0] : result
 }
 
 export function print2DArray<T>(array: T[][]) {
