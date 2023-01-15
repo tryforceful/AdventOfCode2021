@@ -1,8 +1,9 @@
 const SAMPLE = false;
-const PART_ONE = true;
+const DEBUG = false;
 
 import * as fs from "fs";
-// import * as help from "../helpers";
+
+console.time();
 
 const data = fs
   .readFileSync(SAMPLE ? "./input_sample.txt" : "./input.txt", "utf8")
@@ -21,34 +22,32 @@ function* stepGenerator() {
 
     for(let x = 0; x < HEIGHT; x++)
       for(let y = 0; y < WIDTH; y++)
-      {
+      { // handle right-movers first
         const space = curMap[x][y];
         if(space === '>') {
           const aheadCur = curMap[x][(y+1) % WIDTH];
           const aheadNext = nextMap[x][(y+1) % WIDTH];
-          if(aheadCur === '.' && aheadNext === '.') {
+          if(aheadCur === '.' && aheadNext === '.')
             // we get to move one forward
-            nextMap[x][(y+1) % WIDTH] = '>'
-          }
+            nextMap[x][(y+1) % WIDTH] = '>';
           else nextMap[x][y] = '>';
         }
       }
     for(let x = 0; x < HEIGHT; x++)
       for(let y = 0; y < WIDTH; y++)
-      {
+      { // now handle down-movers
         const space = curMap[x][y];
         if(space === 'v') {
           const aheadCur = curMap[(x + 1) % HEIGHT][y];
           const aheadNext = nextMap[(x + 1) % HEIGHT][y];
-          if(aheadCur !== 'v' && aheadNext === '.') {
+          if(aheadCur !== 'v' && aheadNext === '.')
             // we get to move one forward
             nextMap[(x + 1) % HEIGHT][y] = "v";
-          }
           else nextMap[x][y] = 'v';
         }
       }
 
-    if(nextMap.flat().join('') === curMap.flat().join(''))
+    if(nextMap.flat().join() === curMap.flat().join())
       return nextMap;
 
     curMap = nextMap
@@ -58,14 +57,15 @@ function* stepGenerator() {
 
 const namakoStep = stepGenerator();
 
-// console.log(data.map(x=>x.join('')).join('\n')  + '\n')
+if(DEBUG) console.log(data.map(x=>x.join('')).join('\n')  + '\n')
 
 let numSteps = 1;
-let next;
+let next: any;
 while(!((next = namakoStep.next()).done)) {
-  // console.log(next.value.map((x) => x.join("")).join("\n") + "\n");
+  if(DEBUG) console.log(next.value.map((x) => x.join("")).join("\n") + "\n");
   numSteps++;
 }
-// const next = namakoStep.next()
+
 console.dir({numSteps})
-// console.dir(namakoStep.next())
+
+console.timeEnd();
